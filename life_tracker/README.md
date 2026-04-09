@@ -1,17 +1,50 @@
-# life_tracker
+# 🌿 Life Tracker App
 
-A new Flutter project.
+> A sleek, offline-first Life Tracker built with Flutter 🚀  
+> Manage your expenses, habits, and daily productivity in one simple app.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## ✨ App Preview
 
-A few resources to get you started if this is your first Flutter project:
+![Banner](assets/screenshots/banner.jpg)
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 📱 Features
+
+- 💰 Expense Tracker (Offline storage)
+- 📊 Simple Analytics Dashboard
+- 🔥 Habit Tracker with streak system
+- 🎯 Daily Goals & Task Manager
+- 💾 Local Storage (No internet required)
+- 📱 Clean & Modern UI Design
+- 🌙 Dark Mode Support
+
+---
+
+## 🧠 Tech Stack
+
+- Flutter 💙  
+- Dart 🎯  
+- SQLite / Local Storage 📦  
+- Shared Preferences 💾  
+
+---
+
+## 📸 UI Screenshots
+
+| Dashboard | Analytics | Habits |
+|----------|----------|--------|
+| ![Dashboard](assets/screenshots/dashboard.jpg) | ![Analytics](assets/screenshots/analytics.jpg) | ![Habits](assets/screenshots/habits.jpg) |
+
+---
+
+## 🚀 Getting Started
+
+```bash
+git clone https://github.com/BiswajithPN/Life-Tracker.git
+cd life-tracker
+flutter pub get
+flutter run
+```

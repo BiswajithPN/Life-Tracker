@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Tracker | Sync Your Reality</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Outfit:wght@600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- AUTH SCREEN - EXACT REPLICA -->
+    <div id="auth-screen" class="auth-screen">
+        <div class="auth-logo">
+            <h1>LIFE TRACKER</h1>
+            <p>Sync Your Reality</p>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login-form">
+            <div class="auth-card">
+                <div class="input-box">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" id="login-username" placeholder="Username">
+                </div>
+                <div class="input-box">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Password">
+                </div>
+                <button class="log-btn" id="login-submit">LOG IN</button>
+            </div>
+            <div class="auth-footer">
+                Don't have an account? <span id="go-to-signup">CREATE ONE</span>
+            </div>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signup-form" class="hidden">
+            <div class="auth-card">
+                <div class="input-box">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" id="signup-username" placeholder="Choose Username">
+                </div>
+                <div class="input-box">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" id="signup-password" placeholder="Choose Password">
+                </div>
+                <button class="log-btn" id="signup-submit" style="background: #ff00ff; box-shadow: 0 0 30px rgba(255, 0, 255, 0.4);">CREATE ACCOUNT</button>
+            </div>
+            <div class="auth-footer">
+                Already have an account? <span id="go-to-login">LOG IN</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container" class="app-container hidden">
+        <main id="main-view">
+            <!-- Dynamic Content -->
+        </main>
+
+        <!-- NAVIGATION -->
+        <nav class="bottom-nav glass">
+            <div class="nav-btn active" onclick="switchView('home')">
+                <i class="fa-solid fa-house"></i>
+                <span>Home</span>
+            </div>
+            <div class="nav-btn" onclick="switchView('analytics')">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>Analytics</span>
+            </div>
+            <button class="fab-btn" id="add-log-btn"><i class="fa-solid fa-plus"></i></button>
+            <div class="nav-btn" onclick="switchView('habits')">
+                <i class="fa-solid fa-calendar-check"></i>
+                <span>Habits</span>
+            </div>
+            <div class="nav-btn" onclick="switchView('profile')">
+                <i class="fa-solid fa-user"></i>
+                <span>Profile</span>
+            </div>
+        </nav>
+    </div>
+
+    <!-- MODAL -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="bottom-sheet glass">
+            <div class="segmented-control">
+                <button class="seg-btn expense active" data-type="Expense">EXPENSE</button>
+                <button class="seg-btn income" data-type="Income">INCOME</button>
+            </div>
+            
+            <input type="text" id="desc-input" placeholder="What was this for?" class="input-field">
+            
+            <div class="chips">
+                <div class="chip active">Salary</div>
+                <div class="chip">Food</div>
+                <div class="chip">Health</div>
+                <div class="chip">Transport</div>
+                <div class="chip">Entertainment</div>
+            </div>
+
+            <button class="primary-btn" id="save-log-btn">ADD LOG</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
