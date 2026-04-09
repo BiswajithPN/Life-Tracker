@@ -7,7 +7,7 @@
 
 ## ✨ App Preview
 
-![Banner](https://your-image-link.com/banner.png)
+![Banner](life_tracker/screenshots/banner.png)
 
 ---
 
@@ -36,14 +36,15 @@
 
 | Dashboard | Expenses | Habits |
 |----------|----------|--------|
-| ![1](https://your-image-link.com/1.png) | ![2](https://your-image-link.com/2.png) | ![3](https://your-image-link.com/3.png) |
+| ![1](life_tracker/screenshots/1.png) | ![2](life_tracker/screenshots/2.png) | ![3](life_tracker/screenshots/3.png) |
 
 ---
 
 ## 🚀 Getting Started
 
 ```bash
-git clone https://github.com/your-username/life-tracker.git
+git clone https://github.com/BiswajithPN/Life-Tracker.git
 cd life-tracker
 flutter pub get
 flutter run
+```
