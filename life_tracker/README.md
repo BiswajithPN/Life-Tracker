@@ -7,7 +7,7 @@
 
 ## ✨ App Preview
 
-![Banner](assets/screenshots/banner.jpg)
+![Banner](screenshots/banner.png)
 
 ---
 
@@ -34,9 +34,9 @@
 
 ## 📸 UI Screenshots
 
-| Dashboard | Analytics | Habits |
+| Dashboard | Expenses | Habits |
 |----------|----------|--------|
-| ![Dashboard](assets/screenshots/dashboard.jpg) | ![Analytics](assets/screenshots/analytics.jpg) | ![Habits](assets/screenshots/habits.jpg) |
+| ![1](screenshots/1.png) | ![2](screenshots/2.png) | ![3](screenshots/3.png) |
 
 ---
 
