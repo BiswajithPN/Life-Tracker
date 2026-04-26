@@ -7,7 +7,9 @@
 
 ## ✨ App Preview
 
-![Banner](life_tracker/screenshots/banner.png)
+<p align="center">
+  <img src="life_tracker/screenshots/banner.png" width="70%"/>
+</p>
 
 ---
 
@@ -34,9 +36,11 @@
 
 ## 📸 UI Screenshots
 
-| Dashboard | Expenses | Habits |
-|----------|----------|--------|
-| ![1](life_tracker/screenshots/1.png) | ![2](life_tracker/screenshots/2.png) | ![3](life_tracker/screenshots/3.png) |
+<p align="center">
+  <img src="life_tracker/screenshots/1.png" width="30%"/>
+  <img src="life_tracker/screenshots/2.png" width="30%"/>
+  <img src="life_tracker/screenshots/3.png" width="30%"/>
+</p>
 
 ---
 
@@ -47,4 +51,3 @@ git clone https://github.com/BiswajithPN/Life-Tracker.git
 cd life-tracker
 flutter pub get
 flutter run
-```
