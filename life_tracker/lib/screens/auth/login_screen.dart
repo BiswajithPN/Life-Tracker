@@ -19,6 +19,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  bool _obscurePassword = true;
 
   void _handleLogin() async {
     setState(() {
@@ -54,16 +55,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       body: Stack(
         children: [
           Container(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(-0.5, -0.8),
-                radius: 1.5,
-                colors: [Color(0xFF1E112A), AppTheme.background],
-              ),
+            decoration: BoxDecoration(
+              gradient: isDark
+                  ? const RadialGradient(
+                      center: Alignment(-0.5, -0.8),
+                      radius: 1.5,
+                      colors: [Color(0xFF1E112A), AppTheme.background],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFE8F5F3), Color(0xFFF5F0FF)],
+                    ),
             ),
           ),
           SafeArea(
@@ -81,6 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         'LIFE TRACKER',
                         style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           letterSpacing: 4,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -147,7 +156,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: RichText(
                         text: TextSpan(
                           text: "Don't have an account? ",
-                          style: TextStyle(color: AppTheme.textSecondary),
+                          style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                           children: const [
                             TextSpan(
                               text: 'CREATE ONE',
@@ -176,27 +185,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required IconData icon,
     bool isPassword = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppTheme.lightTextPrimary;
+    final hintColor = isDark
+        ? Colors.white.withValues(alpha: 0.35)
+        : AppTheme.lightTextSecondary.withValues(alpha: 0.6);
+    final fillColor = isDark
+        ? Colors.black.withValues(alpha: 0.2)
+        : Colors.white.withValues(alpha: 0.7);
+
     return TextField(
       controller: controller,
-      obscureText: isPassword,
-      style: const TextStyle(color: Colors.white),
+      obscureText: isPassword ? _obscurePassword : false,
+      style: TextStyle(color: textColor),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+        hintStyle: TextStyle(color: hintColor),
         prefixIcon: Icon(icon, color: AppTheme.accentCyan.withValues(alpha: 0.7)),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: AppTheme.accentCyan.withValues(alpha: 0.7),
+                  size: 20,
+                ),
+                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              )
+            : null,
         filled: true,
-        fillColor: Colors.black.withValues(alpha: 0.2),
+        fillColor: fillColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : AppTheme.accentCyan.withValues(alpha: 0.2),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppTheme.accentCyan, width: 1),
+          borderSide: const BorderSide(color: AppTheme.accentCyan, width: 1.5),
         ),
       ),
     );

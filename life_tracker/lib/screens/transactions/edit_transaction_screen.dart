@@ -12,7 +12,8 @@ class EditTransactionModal extends ConsumerStatefulWidget {
   const EditTransactionModal({super.key, required this.transaction});
 
   @override
-  ConsumerState<EditTransactionModal> createState() => _EditTransactionModalState();
+  ConsumerState<EditTransactionModal> createState() =>
+      _EditTransactionModalState();
 }
 
 class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
@@ -26,7 +27,9 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
     super.initState();
     isExpense = widget.transaction.type == 'expense';
     selectedCategory = widget.transaction.category;
-    _amountController = TextEditingController(text: widget.transaction.amount.toString());
+    _amountController = TextEditingController(
+      text: widget.transaction.amount.toString(),
+    );
     _titleController = TextEditingController(text: widget.transaction.title);
   }
 
@@ -38,7 +41,9 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
   }
 
   void _updateTransaction() {
-    if (_amountController.text.isEmpty || _titleController.text.isEmpty || selectedCategory == null) {
+    if (_amountController.text.isEmpty ||
+        _titleController.text.isEmpty ||
+        selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please fill all fields'),
@@ -69,12 +74,14 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
     ref.read(transactionProvider.notifier).updateTransaction(updated);
     Navigator.of(context).pop();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('✅ Transaction updated'),
-        backgroundColor: AppTheme.accentCyan.withValues(alpha: 0.8),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('✅ Transaction updated'),
+          backgroundColor: AppTheme.accentCyan.withValues(alpha: 0.8),
+        ),
+      );
+    }
   }
 
   void _deleteTransaction() {
@@ -84,26 +91,41 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Delete Transaction', style: TextStyle(fontSize: 16)),
-        content: const Text('Are you sure you want to delete this transaction? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this transaction? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () {
-              ref.read(transactionProvider.notifier).deleteTransaction(widget.transaction.id);
+              ref
+                  .read(transactionProvider.notifier)
+                  .deleteTransaction(widget.transaction.id);
               Navigator.pop(ctx); // Close dialog
               Navigator.pop(context); // Close modal
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('🗑️ Transaction deleted'),
-                  backgroundColor: AppTheme.glowingRed.withValues(alpha: 0.8),
-                ),
-              );
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('🗑️ Transaction deleted'),
+                    backgroundColor: AppTheme.glowingRed.withValues(alpha: 0.8),
+                  ),
+                );
+              }
             },
-            child: const Text('DELETE', style: TextStyle(color: AppTheme.glowingRed, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(
+                color: AppTheme.glowingRed,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -114,18 +136,23 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
   Widget build(BuildContext context) {
     final allCategories = ref.watch(categoryProvider);
     final type = isExpense ? 'expense' : 'income';
-    final filteredCategories = allCategories.where((c) => c.type == type).toList();
+    final filteredCategories = allCategories
+        .where((c) => c.type == type)
+        .toList();
 
     // Reset selected category if type changes and current selection is invalid
     if (selectedCategory != null &&
         !filteredCategories.any((c) => c.name == selectedCategory)) {
-      selectedCategory = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => selectedCategory = null);
+      });
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.surface : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       ),
       padding: EdgeInsets.only(
         top: 24,
@@ -143,7 +170,9 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
               width: 50,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : Colors.grey.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -154,10 +183,10 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'EDIT TRANSACTION',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: isDark ? Colors.white70 : AppTheme.lightTextSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 2,
@@ -170,9 +199,15 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                   decoration: BoxDecoration(
                     color: AppTheme.glowingRed.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppTheme.glowingRed.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppTheme.glowingRed.withValues(alpha: 0.3),
+                    ),
                   ),
-                  child: const Icon(Icons.delete_outline, color: AppTheme.glowingRed, size: 20),
+                  child: const Icon(
+                    Icons.delete_outline,
+                    color: AppTheme.glowingRed,
+                    size: 20,
+                  ),
                 ),
               ),
             ],
@@ -183,7 +218,9 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.3)
+                  : Colors.grey.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(30),
             ),
             child: Row(
@@ -194,15 +231,24 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: isExpense ? AppTheme.glowingRed.withValues(alpha: 0.2) : Colors.transparent,
+                        color: isExpense
+                            ? AppTheme.glowingRed.withValues(alpha: 0.2)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(30),
-                        boxShadow: isExpense ? AppTheme.getNeonGlow(color: AppTheme.glowingRed, intensity: 0.5) : [],
+                        boxShadow: isExpense
+                            ? AppTheme.getNeonGlow(
+                                color: AppTheme.glowingRed,
+                                intensity: 0.5,
+                              )
+                            : [],
                       ),
                       child: Text(
                         'EXPENSE',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: isExpense ? AppTheme.glowingRed : Colors.white54,
+                          color: isExpense
+                              ? AppTheme.glowingRed
+                              : (isDark ? Colors.white54 : Colors.black38),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -215,15 +261,24 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: !isExpense ? AppTheme.accentCyan.withValues(alpha: 0.2) : Colors.transparent,
+                        color: !isExpense
+                            ? AppTheme.accentCyan.withValues(alpha: 0.2)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(30),
-                        boxShadow: !isExpense ? AppTheme.getNeonGlow(color: AppTheme.accentCyan, intensity: 0.5) : [],
+                        boxShadow: !isExpense
+                            ? AppTheme.getNeonGlow(
+                                color: AppTheme.accentCyan,
+                                intensity: 0.5,
+                              )
+                            : [],
                       ),
                       child: Text(
                         'INCOME',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: !isExpense ? AppTheme.accentCyan : Colors.white54,
+                          color: !isExpense
+                              ? AppTheme.accentCyan
+                              : (isDark ? Colors.white54 : Colors.black38),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -244,7 +299,7 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                 Text(
                   '₹',
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                    color: Colors.white54,
+                    color: isDark ? Colors.white54 : Colors.black38,
                     fontSize: 40,
                   ),
                 ),
@@ -252,14 +307,19 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                 IntrinsicWidth(
                   child: TextField(
                     controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 48),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.displayLarge?.copyWith(fontSize: 48),
                     decoration: InputDecoration(
                       hintText: '0.00',
-                      hintStyle: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        color: Colors.white24,
-                        fontSize: 48,
-                      ),
+                      hintStyle: Theme.of(context).textTheme.displayLarge
+                          ?.copyWith(
+                            color: isDark ? Colors.white24 : Colors.black26,
+                            fontSize: 48,
+                          ),
                       border: InputBorder.none,
                     ),
                   ),
@@ -273,12 +333,18 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
           // Title Input
           TextField(
             controller: _titleController,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(
+              color: isDark ? Colors.white : AppTheme.lightTextPrimary,
+            ),
             decoration: InputDecoration(
               hintText: 'What was this for?',
-              hintStyle: const TextStyle(color: Colors.white38),
+              hintStyle: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
               filled: true,
-              fillColor: Colors.black.withValues(alpha: 0.2),
+              fillColor: isDark
+                  ? Colors.black.withValues(alpha: 0.2)
+                  : Colors.grey.withValues(alpha: 0.08),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
@@ -292,7 +358,12 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
           if (filteredCategories.isEmpty)
             Text(
               'No $type categories. Add in Profile →',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+              style: TextStyle(
+                color: (isDark ? Colors.white : Colors.black).withValues(
+                  alpha: 0.3,
+                ),
+                fontSize: 13,
+              ),
               textAlign: TextAlign.center,
             )
           else
@@ -305,26 +376,44 @@ class _EditTransactionModalState extends ConsumerState<EditTransactionModal> {
                   final category = filteredCategories[index];
                   final isSelected = category.name == selectedCategory;
                   return GestureDetector(
-                    onTap: () => setState(() => selectedCategory = category.name),
+                    onTap: () =>
+                        setState(() => selectedCategory = category.name),
                     child: Container(
                       margin: const EdgeInsets.only(right: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? (isExpense ? AppTheme.glowingRed.withValues(alpha: 0.2) : AppTheme.accentCyan.withValues(alpha: 0.2))
-                            : Colors.black.withValues(alpha: 0.2),
+                            ? (isExpense
+                                  ? AppTheme.glowingRed.withValues(alpha: 0.2)
+                                  : AppTheme.accentCyan.withValues(alpha: 0.2))
+                            : (isDark
+                                  ? Colors.black.withValues(alpha: 0.2)
+                                  : Colors.grey.withValues(alpha: 0.1)),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
-                              ? (isExpense ? AppTheme.glowingRed : AppTheme.accentCyan)
-                              : Colors.white12,
+                              ? (isExpense
+                                    ? AppTheme.glowingRed
+                                    : AppTheme.accentCyan)
+                              : (isDark
+                                    ? Colors.white12
+                                    : Colors.grey.withValues(alpha: 0.3)),
                         ),
                       ),
                       child: Text(
                         category.name,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white54,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected
+                              ? (isDark
+                                    ? Colors.white
+                                    : AppTheme.lightTextPrimary)
+                              : (isDark ? Colors.white54 : Colors.black45),
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     ),

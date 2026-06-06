@@ -5,11 +5,13 @@ import 'screens/splash/splash_screen.dart';
 import 'services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'state/shared_prefs_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.init();
   final prefs = await SharedPreferences.getInstance();
+  GoogleFonts.config.allowRuntimeFetching = false;
   
   runApp(
     ProviderScope(

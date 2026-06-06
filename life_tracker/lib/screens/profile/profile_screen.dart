@@ -15,18 +15,22 @@ class ProfileScreen extends ConsumerWidget {
     final categories = ref.watch(categoryProvider);
     final expenseCategories = categories.where((c) => c.type == 'expense').toList();
     final incomeCategories = categories.where((c) => c.type == 'income').toList();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? Colors.white : AppTheme.lightTextPrimary;
+    final textSecondaryColor = isDark
+        ? Colors.white.withValues(alpha: 0.5)
+        : AppTheme.lightTextSecondary;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
           'PROFILE',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-          ),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
         ),
         centerTitle: true,
       ),
@@ -55,8 +59,8 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         Text(
                           user?.username ?? 'Guest',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: textPrimary,
                             fontWeight: FontWeight.bold,
                             fontSize: 20,
                           ),
@@ -64,7 +68,7 @@ class ProfileScreen extends ConsumerWidget {
                         Text(
                           user?.email ?? '',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: textSecondaryColor,
                             fontSize: 13,
                           ),
                         ),
@@ -80,13 +84,15 @@ class ProfileScreen extends ConsumerWidget {
             // Manage Categories Section
             _sectionHeader(context, 'EXPENSE CATEGORIES'),
             const SizedBox(height: 12),
-            ...expenseCategories.map((cat) => _categoryTile(context, ref, cat.id, cat.name, AppTheme.glowingRed)),
+            ...expenseCategories.map(
+                (cat) => _categoryTile(context, ref, cat.id, cat.name, AppTheme.glowingRed)),
             _addCategoryButton(context, ref, 'expense'),
 
             const SizedBox(height: 32),
             _sectionHeader(context, 'INCOME CATEGORIES'),
             const SizedBox(height: 12),
-            ...incomeCategories.map((cat) => _categoryTile(context, ref, cat.id, cat.name, AppTheme.accentCyan)),
+            ...incomeCategories.map(
+                (cat) => _categoryTile(context, ref, cat.id, cat.name, AppTheme.accentCyan)),
             _addCategoryButton(context, ref, 'income'),
 
             const SizedBox(height: 40),
@@ -103,7 +109,13 @@ class ProfileScreen extends ConsumerWidget {
                   );
                 },
                 icon: const Icon(Icons.logout, color: AppTheme.glowingRed),
-                label: const Text('LOG OUT', style: TextStyle(color: AppTheme.glowingRed, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                label: const Text(
+                  'LOG OUT',
+                  style: TextStyle(
+                      color: AppTheme.glowingRed,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2),
+                ),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppTheme.glowingRed),
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -123,33 +135,48 @@ class ProfileScreen extends ConsumerWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        letterSpacing: 2,
-        color: AppTheme.textSecondary,
-      ),
+            letterSpacing: 2,
+            fontWeight: FontWeight.bold,
+          ),
     );
   }
 
-  Widget _categoryTile(BuildContext context, WidgetRef ref, String id, String name, Color color) {
+  Widget _categoryTile(
+      BuildContext context, WidgetRef ref, String id, String name, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: isDark ? AppTheme.surface : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.grey.withValues(alpha: 0.2),
+        ),
       ),
       child: Row(
         children: [
           Icon(Icons.circle, size: 10, color: color),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(name, style: const TextStyle(color: Colors.white)),
+            child: Text(
+              name,
+              style: TextStyle(
+                color: isDark ? Colors.white : AppTheme.lightTextPrimary,
+              ),
+            ),
           ),
           GestureDetector(
-            onTap: () {
-              ref.read(categoryProvider.notifier).removeCategory(id);
-            },
-            child: Icon(Icons.close, size: 18, color: Colors.white.withValues(alpha: 0.3)),
+            onTap: () => ref.read(categoryProvider.notifier).removeCategory(id),
+            child: Icon(
+              Icons.close,
+              size: 18,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : Colors.grey.withValues(alpha: 0.5),
+            ),
           ),
         ],
       ),
@@ -165,14 +192,19 @@ class ProfileScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: (type == 'expense' ? AppTheme.glowingRed : AppTheme.accentCyan).withValues(alpha: 0.3),
-            style: BorderStyle.solid,
+            color:
+                (type == 'expense' ? AppTheme.glowingRed : AppTheme.accentCyan)
+                    .withValues(alpha: 0.3),
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, size: 18, color: type == 'expense' ? AppTheme.glowingRed : AppTheme.accentCyan),
+            Icon(
+              Icons.add,
+              size: 18,
+              color: type == 'expense' ? AppTheme.glowingRed : AppTheme.accentCyan,
+            ),
             const SizedBox(width: 8),
             Text(
               'ADD ${type.toUpperCase()} CATEGORY',
@@ -191,24 +223,36 @@ class ProfileScreen extends ConsumerWidget {
 
   void _showAddCategoryDialog(BuildContext context, WidgetRef ref, String type) {
     final controller = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surface,
+        backgroundColor: isDark ? AppTheme.surface : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Add ${type == "expense" ? "Expense" : "Income"} Category',
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(
+            color: isDark ? Colors.white : AppTheme.lightTextPrimary,
+            fontSize: 16,
+          ),
         ),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: isDark ? Colors.white : AppTheme.lightTextPrimary,
+          ),
           decoration: InputDecoration(
             hintText: 'Category name',
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+            hintStyle: TextStyle(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : AppTheme.lightTextSecondary.withValues(alpha: 0.5),
+            ),
             filled: true,
-            fillColor: Colors.black.withValues(alpha: 0.2),
+            fillColor: isDark
+                ? Colors.black.withValues(alpha: 0.2)
+                : Colors.grey.withValues(alpha: 0.08),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,

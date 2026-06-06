@@ -45,8 +45,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
     // Daily spending for the current month
     final now = DateTime.now();
-    final thisMonthTx = transactions.where(
-        (t) => t.date.month == now.month && t.date.year == now.year).toList();
+    final thisMonthTx = transactions
+        .where((t) => t.date.month == now.month && t.date.year == now.year)
+        .toList();
     final Map<int, double> dailyExpense = {};
     final Map<int, double> dailyIncome = {};
     for (final tx in thisMonthTx) {
@@ -54,19 +55,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         dailyExpense[tx.date.day] = (dailyExpense[tx.date.day] ?? 0) + tx.amount;
       } else {
         dailyIncome[tx.date.day] = (dailyIncome[tx.date.day] ?? 0) + tx.amount;
-      }
-    }
-
-    // Monthly totals for the year
-    final Map<int, double> monthlyExpense = {};
-    final Map<int, double> monthlyIncome = {};
-    for (final tx in transactions) {
-      if (tx.date.year == now.year) {
-        if (tx.type == 'expense') {
-          monthlyExpense[tx.date.month] = (monthlyExpense[tx.date.month] ?? 0) + tx.amount;
-        } else {
-          monthlyIncome[tx.date.month] = (monthlyIncome[tx.date.month] ?? 0) + tx.amount;
-        }
       }
     }
 
@@ -83,12 +71,87 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     for (final tx in transactions.where((t) => t.type == 'expense')) {
       daysWithExpense.add('${tx.date.year}-${tx.date.month}-${tx.date.day}');
     }
-    final avgDailySpend = daysWithExpense.isNotEmpty
-        ? totalExpense / daysWithExpense.length
-        : 0.0;
+    final avgDailySpend =
+        daysWithExpense.isNotEmpty ? totalExpense / daysWithExpense.length : 0.0;
 
     // Saving rate
-    final savingRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome * 100) : 0.0;
+    final savingRate =
+        totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome * 100) : 0.0;
+
+    // Biggest single-day expense
+    final Map<String, double> dayExpenseMap = {};
+    for (final tx in transactions.where((t) => t.type == 'expense')) {
+      final key =
+          '${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}-${tx.date.day.toString().padLeft(2, '0')}';
+      dayExpenseMap[key] = (dayExpenseMap[key] ?? 0) + tx.amount;
+    }
+    String? biggestDay;
+    double biggestDayAmount = 0;
+    for (final e in dayExpenseMap.entries) {
+      if (e.value > biggestDayAmount) {
+        biggestDayAmount = e.value;
+        biggestDay = e.key;
+      }
+    }
+
+    // Weekly cash flow (last 7 days)
+    final Map<String, double> last7DaysCF = {};
+    for (int i = 6; i >= 0; i--) {
+      final d = now.subtract(Duration(days: i));
+      final key =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      last7DaysCF[key] = 0;
+    }
+    for (final tx in transactions) {
+      final key =
+          '${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}-${tx.date.day.toString().padLeft(2, '0')}';
+      if (last7DaysCF.containsKey(key)) {
+        if (tx.type == 'income') {
+          last7DaysCF[key] = (last7DaysCF[key] ?? 0) + tx.amount;
+        } else {
+          last7DaysCF[key] = (last7DaysCF[key] ?? 0) - tx.amount;
+        }
+      }
+    }
+
+    // Cash flow health score (0–100)
+    double cashFlowScore = 0;
+    if (totalIncome > 0) {
+      final ratio = (totalIncome - totalExpense) / totalIncome;
+      cashFlowScore = (ratio * 100).clamp(0, 100);
+    }
+
+    // Longest no-spend streak
+    final Set<String> expenseDays = {};
+    for (final tx in transactions.where((t) => t.type == 'expense')) {
+      expenseDays.add(
+          '${tx.date.year}-${tx.date.month}-${tx.date.day}');
+    }
+    int longestStreak = 0;
+    int currentStreak = 0;
+    for (int i = 30; i >= 0; i--) {
+      final d = now.subtract(Duration(days: i));
+      final key = '${d.year}-${d.month}-${d.day}';
+      if (!expenseDays.contains(key)) {
+        currentStreak++;
+        if (currentStreak > longestStreak) longestStreak = currentStreak;
+      } else {
+        currentStreak = 0;
+      }
+    }
+
+    // This month vs last month
+    final lastMonth = DateTime(now.year, now.month - 1);
+    final lastMonthTx = transactions
+        .where((t) => t.date.month == lastMonth.month && t.date.year == lastMonth.year)
+        .toList();
+    final lastMonthExpense =
+        lastMonthTx.where((t) => t.type == 'expense').fold(0.0, (s, t) => s + t.amount);
+    final thisMonthExpense =
+        thisMonthTx.where((t) => t.type == 'expense').fold(0.0, (s, t) => s + t.amount);
+    final expenseChange = lastMonthExpense > 0
+        ? ((thisMonthExpense - lastMonthExpense) / lastMonthExpense * 100)
+        : 0.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -97,9 +160,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         title: Text(
           'ANALYTICS',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 2,
-          ),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
         ),
         centerTitle: true,
         actions: [
@@ -107,12 +170,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             IconButton(
               icon: _isGeneratingPdf
                   ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accentCyan),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppTheme.accentCyan),
                     )
                   : const Icon(Icons.picture_as_pdf_outlined, color: AppTheme.accentCyan),
               tooltip: 'Download PDF Invoice',
-              onPressed: _isGeneratingPdf ? null : () => _showMonthPicker(context, transactions, user?.username ?? 'User'),
+              onPressed: _isGeneratingPdf
+                  ? null
+                  : () => _showMonthPicker(
+                      context, transactions, user?.username ?? 'User'),
             ),
         ],
       ),
@@ -121,16 +189,30 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.pie_chart, size: 64, color: AppTheme.accentPurple.withValues(alpha: 0.3)),
+                  Icon(Icons.pie_chart,
+                      size: 64,
+                      color: AppTheme.accentPurple.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
                   Text(
                     'No data yet',
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.5), fontSize: 16),
+                    style: TextStyle(
+                        color: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.color
+                            ?.withValues(alpha: 0.5),
+                        fontSize: 16),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Add some transactions to see analytics',
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.3), fontSize: 13),
+                    style: TextStyle(
+                        color: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.color
+                            ?.withValues(alpha: 0.3),
+                        fontSize: 13),
                   ),
                 ],
               ),
@@ -142,7 +224,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 children: [
                   // PDF Download Banner
                   GestureDetector(
-                    onTap: () => _showMonthPicker(context, transactions, user?.username ?? 'User'),
+                    onTap: () => _showMonthPicker(
+                        context, transactions, user?.username ?? 'User'),
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -153,7 +236,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           ],
                         ),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.3)),
+                        border: Border.all(
+                            color: AppTheme.accentCyan.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -163,7 +247,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               color: AppTheme.accentCyan.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.picture_as_pdf, color: AppTheme.accentCyan, size: 22),
+                            child: const Icon(Icons.picture_as_pdf,
+                                color: AppTheme.accentCyan, size: 22),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -171,17 +256,27 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('Download Monthly Invoice',
-                                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge
+                                        ?.copyWith(fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 2),
-                                Text('Generate PDF report of your transactions',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
-                                    )),
+                                Text(
+                                  'Generate PDF report of your transactions',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color
+                                        ?.withValues(alpha: 0.6),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.accentCyan),
+                          const Icon(Icons.arrow_forward_ios,
+                              size: 16, color: AppTheme.accentCyan),
                         ],
                       ),
                     ),
@@ -194,27 +289,160 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: _quickStatCard(context, 'Saving Rate',
-                          '${savingRate.toStringAsFixed(1)}%',
-                          savingRate >= 20 ? AppTheme.accentCyan : AppTheme.glowingRed,
-                          savingRate >= 20 ? Icons.trending_up : Icons.trending_down)),
+                      Expanded(
+                          child: _quickStatCard(
+                              context,
+                              'Saving Rate',
+                              '${savingRate.toStringAsFixed(1)}%',
+                              savingRate >= 20
+                                  ? AppTheme.accentCyan
+                                  : AppTheme.glowingRed,
+                              savingRate >= 20
+                                  ? Icons.trending_up
+                                  : Icons.trending_down)),
                       const SizedBox(width: 12),
-                      Expanded(child: _quickStatCard(context, 'Avg Daily Spend',
-                          '₹${avgDailySpend.toStringAsFixed(0)}',
-                          AppTheme.accentMagenta, Icons.calendar_today)),
+                      Expanded(
+                          child: _quickStatCard(
+                              context,
+                              'Avg Daily Spend',
+                              '₹${avgDailySpend.toStringAsFixed(0)}',
+                              AppTheme.accentMagenta,
+                              Icons.calendar_today)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: _quickStatCard(context, 'Total Logs',
-                          '${transactions.length}',
-                          AppTheme.accentPurple, Icons.receipt_long)),
+                      Expanded(
+                          child: _quickStatCard(
+                              context,
+                              'Total Logs',
+                              '${transactions.length}',
+                              AppTheme.accentPurple,
+                              Icons.receipt_long)),
                       const SizedBox(width: 12),
-                      Expanded(child: _quickStatCard(context, 'This Month',
-                          '${thisMonthTx.length} logs',
-                          AppTheme.accentCyan, Icons.date_range)),
+                      Expanded(
+                          child: _quickStatCard(
+                              context,
+                              'This Month',
+                              '${thisMonthTx.length} logs',
+                              AppTheme.accentCyan,
+                              Icons.date_range)),
                     ],
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // Cash Flow Health Score
+                  _sectionHeader(context, 'CASH FLOW HEALTH'),
+                  const SizedBox(height: 16),
+                  FloatingGlassCard(
+                    glowColor: cashFlowScore >= 50
+                        ? AppTheme.accentCyan
+                        : AppTheme.glowingRed,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Health Score',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    letterSpacing: 1,
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${cashFlowScore.toStringAsFixed(0)}/100',
+                                  style: TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: cashFlowScore >= 70
+                                        ? AppTheme.accentCyan
+                                        : cashFlowScore >= 40
+                                            ? const Color(0xFFFFB347)
+                                            : AppTheme.glowingRed,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: (cashFlowScore >= 70
+                                        ? AppTheme.accentCyan
+                                        : cashFlowScore >= 40
+                                            ? const Color(0xFFFFB347)
+                                            : AppTheme.glowingRed)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                cashFlowScore >= 70
+                                    ? '🟢 Healthy'
+                                    : cashFlowScore >= 40
+                                        ? '🟡 Moderate'
+                                        : '🔴 Needs Work',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: cashFlowScore >= 70
+                                      ? AppTheme.accentCyan
+                                      : cashFlowScore >= 40
+                                          ? const Color(0xFFFFB347)
+                                          : AppTheme.glowingRed,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: cashFlowScore / 100,
+                            minHeight: 10,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .surface
+                                .withValues(alpha: 0.3),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              cashFlowScore >= 70
+                                  ? AppTheme.accentCyan
+                                  : cashFlowScore >= 40
+                                      ? const Color(0xFFFFB347)
+                                      : AppTheme.glowingRed,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          cashFlowScore >= 70
+                              ? 'Great job! You\'re saving well this period.'
+                              : cashFlowScore >= 40
+                                  ? 'You\'re spending a good portion of income. Watch it!'
+                                  : 'Expenses outpace income. Consider reducing spending.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color
+                                ?.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 28),
@@ -229,12 +457,28 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _statColumn(context, 'INCOME', '₹${totalIncome.toStringAsFixed(0)}', AppTheme.accentCyan),
-                            Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
-                            _statColumn(context, 'EXPENSE', '₹${totalExpense.toStringAsFixed(0)}', AppTheme.glowingRed),
-                            Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
-                            _statColumn(context, 'BALANCE', '₹${balance.toStringAsFixed(0)}',
-                                balance >= 0 ? AppTheme.accentCyan : AppTheme.glowingRed),
+                            _statColumn(context, 'INCOME',
+                                '₹${totalIncome.toStringAsFixed(0)}', AppTheme.accentCyan),
+                            Container(
+                                width: 1,
+                                height: 40,
+                                color: Theme.of(context)
+                                    .dividerColor
+                                    .withValues(alpha: 0.3)),
+                            _statColumn(context, 'EXPENSE',
+                                '₹${totalExpense.toStringAsFixed(0)}', AppTheme.glowingRed),
+                            Container(
+                                width: 1,
+                                height: 40,
+                                color: Theme.of(context)
+                                    .dividerColor
+                                    .withValues(alpha: 0.3)),
+                            _statColumn(
+                              context,
+                              'BALANCE',
+                              '₹${balance.toStringAsFixed(0)}',
+                              balance >= 0 ? AppTheme.accentCyan : AppTheme.glowingRed,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -245,18 +489,33 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               gridData: const FlGridData(show: false),
                               titlesData: FlTitlesData(
                                 show: true,
-                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false)),
+                                topTitles: const AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false)),
+                                leftTitles: const AxisTitles(
+                                    sideTitles: SideTitles(showTitles: false)),
                                 bottomTitles: AxisTitles(
                                   sideTitles: SideTitles(
                                     showTitles: true,
                                     getTitlesWidget: (value, meta) {
                                       switch (value.toInt()) {
                                         case 0:
-                                          return const Text('Income', style: TextStyle(fontSize: 11));
+                                          return Text('Income',
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.color));
                                         case 1:
-                                          return const Text('Expense', style: TextStyle(fontSize: 11));
+                                          return Text('Expense',
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.color));
                                         default:
                                           return const Text('');
                                       }
@@ -274,7 +533,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                     backDrawRodData: BackgroundBarChartRodData(
                                       show: true,
-                                      toY: totalIncome == 0 && totalExpense == 0 ? 100 : (totalIncome > totalExpense ? totalIncome : totalExpense) * 1.2,
+                                      toY: totalIncome == 0 && totalExpense == 0
+                                          ? 100
+                                          : (totalIncome > totalExpense
+                                                  ? totalIncome
+                                                  : totalExpense) *
+                                              1.2,
                                       color: AppTheme.accentCyan.withValues(alpha: 0.05),
                                     ),
                                   ),
@@ -287,7 +551,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                     borderRadius: BorderRadius.circular(8),
                                     backDrawRodData: BackgroundBarChartRodData(
                                       show: true,
-                                      toY: totalIncome == 0 && totalExpense == 0 ? 100 : (totalIncome > totalExpense ? totalIncome : totalExpense) * 1.2,
+                                      toY: totalIncome == 0 && totalExpense == 0
+                                          ? 100
+                                          : (totalIncome > totalExpense
+                                                  ? totalIncome
+                                                  : totalExpense) *
+                                              1.2,
                                       color: AppTheme.glowingRed.withValues(alpha: 0.05),
                                     ),
                                   ),
@@ -302,96 +571,234 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
                   const SizedBox(height: 28),
 
-                  // Monthly Trend Chart
-                  if (monthlyExpense.isNotEmpty || monthlyIncome.isNotEmpty) ...[
-                    _sectionHeader(context, 'MONTHLY TREND (${now.year})'),
-                    const SizedBox(height: 16),
-                    FloatingGlassCard(
-                      glowColor: AppTheme.accentCyan,
-                      child: SizedBox(
-                        height: 200,
-                        child: LineChart(
-                          LineChartData(
-                            gridData: FlGridData(
-                              show: true,
-                              drawVerticalLine: false,
-                              horizontalInterval: _getMaxMonthly(monthlyIncome, monthlyExpense) / 4,
-                              getDrawingHorizontalLine: (value) => FlLine(
-                                color: Colors.white.withValues(alpha: 0.05),
-                                strokeWidth: 1,
+                  // 7-Day Cash Flow Trend
+                  _sectionHeader(context, '7-DAY CASH FLOW'),
+                  const SizedBox(height: 16),
+                  FloatingGlassCard(
+                    glowColor: AppTheme.accentCyan,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Net cash flow per day (income − expenses)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color
+                                ?.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 160,
+                          child: _SevenDayCashFlowChart(
+                              last7DaysCF: last7DaysCF),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // Month-over-Month comparison
+                  _sectionHeader(context, 'MONTH COMPARISON'),
+                  const SizedBox(height: 16),
+                  FloatingGlassCard(
+                    glowColor: expenseChange <= 0
+                        ? AppTheme.accentCyan
+                        : AppTheme.glowingRed,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _monthCompareCard(
+                            context,
+                            'Last Month',
+                            '₹${lastMonthExpense.toStringAsFixed(0)}',
+                            AppTheme.textSecondary,
+                            Icons.history,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: (expenseChange <= 0
+                                    ? AppTheme.accentCyan
+                                    : AppTheme.glowingRed)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                expenseChange <= 0
+                                    ? Icons.arrow_downward
+                                    : Icons.arrow_upward,
+                                color: expenseChange <= 0
+                                    ? AppTheme.accentCyan
+                                    : AppTheme.glowingRed,
+                                size: 18,
                               ),
-                            ),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget: (value, meta) {
-                                    const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
-                                    if (value.toInt() >= 1 && value.toInt() <= 12) {
-                                      return Text(months[value.toInt() - 1],
-                                          style: const TextStyle(fontSize: 10));
-                                    }
-                                    return const Text('');
-                                  },
+                              Text(
+                                '${expenseChange.abs().toStringAsFixed(0)}%',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: expenseChange <= 0
+                                      ? AppTheme.accentCyan
+                                      : AppTheme.glowingRed,
                                 ),
                               ),
-                            ),
-                            borderData: FlBorderData(show: false),
-                            minX: 1,
-                            maxX: 12,
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: List.generate(12, (i) {
-                                  final m = i + 1;
-                                  return FlSpot(m.toDouble(), monthlyIncome[m] ?? 0);
-                                }),
-                                isCurved: true,
-                                color: AppTheme.accentCyan,
-                                barWidth: 2,
-                                isStrokeCapRound: true,
-                                dotData: const FlDotData(show: false),
-                                belowBarData: BarAreaData(
-                                  show: true,
-                                  color: AppTheme.accentCyan.withValues(alpha: 0.08),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: _monthCompareCard(
+                            context,
+                            'This Month',
+                            '₹${thisMonthExpense.toStringAsFixed(0)}',
+                            expenseChange <= 0
+                                ? AppTheme.accentCyan
+                                : AppTheme.glowingRed,
+                            Icons.today,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // No-Spend Streak & Biggest Day
+                  _sectionHeader(context, 'SPENDING INSIGHTS'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FloatingGlassCard(
+                          padding: const EdgeInsets.all(16),
+                          glowColor: AppTheme.accentCyan,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accentCyan
+                                          .withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.local_fire_department,
+                                        color: AppTheme.accentCyan, size: 18),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'No-Spend\nStreak',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.accentCyan,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                '$longestStreak days',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.accentCyan,
                                 ),
                               ),
-                              LineChartBarData(
-                                spots: List.generate(12, (i) {
-                                  final m = i + 1;
-                                  return FlSpot(m.toDouble(), monthlyExpense[m] ?? 0);
-                                }),
-                                isCurved: true,
-                                color: AppTheme.glowingRed,
-                                barWidth: 2,
-                                isStrokeCapRound: true,
-                                dotData: const FlDotData(show: false),
-                                belowBarData: BarAreaData(
-                                  show: true,
-                                  color: AppTheme.glowingRed.withValues(alpha: 0.08),
+                              Text(
+                                'last 30 days',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withValues(alpha: 0.5),
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _legendDot(AppTheme.accentCyan, 'Income'),
-                          const SizedBox(width: 16),
-                          _legendDot(AppTheme.glowingRed, 'Expense'),
-                        ],
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FloatingGlassCard(
+                          padding: const EdgeInsets.all(16),
+                          glowColor: AppTheme.accentMagenta,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accentMagenta
+                                          .withValues(alpha: 0.15),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.bolt,
+                                        color: AppTheme.accentMagenta, size: 18),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Biggest\nSpend Day',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppTheme.accentMagenta,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                biggestDay != null
+                                    ? '₹${biggestDayAmount.toStringAsFixed(0)}'
+                                    : '—',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.accentMagenta,
+                                ),
+                              ),
+                              Text(
+                                biggestDay != null
+                                    ? _formatDayKey(biggestDay)
+                                    : 'no data',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color
+                                      ?.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                  ],
+                    ],
+                  ),
+
+                  const SizedBox(height: 28),
 
                   // Day of Week Spending
                   if (transactions.any((t) => t.type == 'expense')) ...[
@@ -407,7 +814,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     const SizedBox(height: 28),
                   ],
 
-                  // Expense Breakdown
+                  // Expense Breakdown Pie
                   if (expenseByCategoryAndItem.isNotEmpty && totalExpense > 0) ...[
                     _sectionHeader(context, 'SPENDING BREAKDOWN'),
                     const SizedBox(height: 16),
@@ -423,7 +830,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                 centerSpaceRadius: 40,
                                 sections: _buildPieSections(
                                   expenseByCategoryAndItem.map(
-                                    (k, v) => MapEntry(k, v.values.fold(0.0, (s, a) => s + a)),
+                                    (k, v) => MapEntry(
+                                        k, v.values.fold(0.0, (s, a) => s + a)),
                                   ),
                                   totalExpense,
                                 ),
@@ -433,8 +841,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           const SizedBox(height: 16),
                           ...expenseByCategoryAndItem.entries.map((catEntry) {
                             final catName = catEntry.key;
-                            final catTotal = catEntry.value.values.fold(0.0, (s, a) => s + a);
-                            final percent = totalExpense > 0 ? (catTotal / totalExpense * 100) : 0;
+                            final catTotal = catEntry.value.values
+                                .fold(0.0, (s, a) => s + a);
+                            final percent = totalExpense > 0
+                                ? (catTotal / totalExpense * 100)
+                                : 0;
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: Column(
@@ -451,27 +862,71 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 10),
-                                      Expanded(child: Text(catName, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold))),
-                                      Text('₹${catTotal.toStringAsFixed(0)}', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                                      Expanded(
+                                          child: Text(catName,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleSmall
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.bold))),
+                                      Text('₹${catTotal.toStringAsFixed(0)}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.bold)),
                                       const SizedBox(width: 8),
-                                      Text('${percent.toStringAsFixed(0)}%', style: Theme.of(context).textTheme.bodySmall),
+                                      Text('${percent.toStringAsFixed(0)}%',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
                                   ...catEntry.value.entries.map((itemEntry) {
                                     return Padding(
-                                      padding: const EdgeInsets.only(left: 24, top: 2, bottom: 2),
+                                      padding: const EdgeInsets.only(
+                                          left: 24, top: 2, bottom: 2),
                                       child: Row(
                                         children: [
-                                          Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.white.withValues(alpha: 0.3)),
+                                          Icon(
+                                              Icons.subdirectory_arrow_right,
+                                              size: 14,
+                                              color: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.color
+                                                  ?.withValues(alpha: 0.4)),
                                           const SizedBox(width: 8),
-                                          Expanded(child: Text(itemEntry.key, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13))),
-                                          Text('₹${itemEntry.value.toStringAsFixed(0)}', style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
+                                          Expanded(
+                                              child: Text(itemEntry.key,
+                                                  style: TextStyle(
+                                                      color: Theme.of(context)
+                                                          .textTheme
+                                                          .bodyMedium
+                                                          ?.color
+                                                          ?.withValues(
+                                                              alpha: 0.7),
+                                                      fontSize: 13))),
+                                          Text(
+                                              '₹${itemEntry.value.toStringAsFixed(0)}',
+                                              style: TextStyle(
+                                                  color: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.color
+                                                      ?.withValues(alpha: 0.7),
+                                                  fontSize: 13)),
                                         ],
                                       ),
                                     );
                                   }),
-                                  const Divider(color: Colors.white10, height: 16),
+                                  Divider(
+                                      color: Theme.of(context)
+                                          .dividerColor
+                                          .withValues(alpha: 0.2),
+                                      height: 16),
                                 ],
                               ),
                             );
@@ -488,7 +943,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     _sectionHeader(context, 'TOP EXPENSES'),
                     const SizedBox(height: 12),
                     ...topSpenders.take(5).map((entry) {
-                      final percent = totalExpense > 0 ? (entry.value / totalExpense) : 0.0;
+                      final percent =
+                          totalExpense > 0 ? (entry.value / totalExpense) : 0.0;
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         child: FloatingGlassCard(
@@ -497,16 +953,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(entry.key,
-                                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                            fontWeight: FontWeight.w600),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w600),
                                         overflow: TextOverflow.ellipsis),
                                   ),
                                   Text('₹${entry.value.toStringAsFixed(0)}',
-                                      style: const TextStyle(color: AppTheme.glowingRed, fontWeight: FontWeight.bold)),
+                                      style: const TextStyle(
+                                          color: AppTheme.glowingRed,
+                                          fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 8),
@@ -514,7 +976,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                 borderRadius: BorderRadius.circular(4),
                                 child: LinearProgressIndicator(
                                   value: percent,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.05),
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .surface
+                                      .withValues(alpha: 0.3),
                                   color: AppTheme.glowingRed,
                                   minHeight: 6,
                                 ),
@@ -534,8 +999,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     const SizedBox(height: 16),
                     ...incomeByCategoryAndItem.entries.map((catEntry) {
                       final catName = catEntry.key;
-                      final catTotal = catEntry.value.values.fold(0.0, (s, a) => s + a);
-                      final percent = totalIncome > 0 ? (catTotal / totalIncome) : 0.0;
+                      final catTotal =
+                          catEntry.value.values.fold(0.0, (s, a) => s + a);
+                      final percent =
+                          totalIncome > 0 ? (catTotal / totalIncome) : 0.0;
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: FloatingGlassCard(
@@ -545,33 +1012,52 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(catName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                                  Text('₹${catTotal.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold)),
+                                  Text(catName,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.bold)),
+                                  Text('₹${catTotal.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                          color: AppTheme.accentCyan,
+                                          fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 10),
                               Container(
                                 height: 8,
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.3),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surface
+                                      .withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      flex: (percent * 100).toInt().clamp(1, 100),
+                                      flex: (percent * 100)
+                                          .toInt()
+                                          .clamp(1, 100),
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: AppTheme.accentCyan,
-                                          borderRadius: BorderRadius.circular(4),
-                                          boxShadow: AppTheme.getNeonGlow(color: AppTheme.accentCyan, intensity: 0.6),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                          boxShadow: AppTheme.getNeonGlow(
+                                              color: AppTheme.accentCyan,
+                                              intensity: 0.6),
                                         ),
                                       ),
                                     ),
                                     Expanded(
-                                      flex: (100 - (percent * 100).toInt()).clamp(0, 99),
+                                      flex: (100 -
+                                              (percent * 100).toInt())
+                                          .clamp(0, 99),
                                       child: const SizedBox(),
                                     ),
                                   ],
@@ -581,13 +1067,34 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                                 const SizedBox(height: 12),
                                 ...catEntry.value.entries.map((itemEntry) {
                                   return Padding(
-                                    padding: const EdgeInsets.only(top: 4, bottom: 4),
+                                    padding: const EdgeInsets.only(
+                                        top: 4, bottom: 4),
                                     child: Row(
                                       children: [
-                                        Icon(Icons.subdirectory_arrow_right, size: 14, color: AppTheme.accentCyan.withValues(alpha: 0.5)),
+                                        Icon(Icons.subdirectory_arrow_right,
+                                            size: 14,
+                                            color: AppTheme.accentCyan
+                                                .withValues(alpha: 0.5)),
                                         const SizedBox(width: 8),
-                                        Expanded(child: Text(itemEntry.key, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13))),
-                                        Text('₹${itemEntry.value.toStringAsFixed(0)}', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
+                                        Expanded(
+                                            child: Text(itemEntry.key,
+                                                style: TextStyle(
+                                                    color: Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.color
+                                                        ?.withValues(
+                                                            alpha: 0.8),
+                                                    fontSize: 13))),
+                                        Text(
+                                            '₹${itemEntry.value.toStringAsFixed(0)}',
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.color
+                                                    ?.withValues(alpha: 0.8),
+                                                fontSize: 13)),
                                       ],
                                     ),
                                   );
@@ -607,18 +1114,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     );
   }
 
-  double _getMaxMonthly(Map<int, double> income, Map<int, double> expense) {
-    double max = 1;
-    for (final v in income.values) {
-      if (v > max) max = v;
+  String _formatDayKey(String key) {
+    try {
+      final parts = key.split('-');
+      final d = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+      return DateFormat('d MMM yyyy').format(d);
+    } catch (_) {
+      return key;
     }
-    for (final v in expense.values) {
-      if (v > max) max = v;
-    }
-    return max;
   }
 
-  void _showMonthPicker(BuildContext context, List transactions, String username) {
+  void _showMonthPicker(
+      BuildContext context, List transactions, String username) {
     final now = DateTime.now();
     int selectedMonth = now.month;
     int selectedYear = now.year;
@@ -628,12 +1135,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Generate PDF Invoice', style: TextStyle(fontSize: 16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Generate PDF Invoice',
+              style: TextStyle(fontSize: 16)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Select month and year for the invoice:', style: TextStyle(fontSize: 13)),
+              const Text('Select month and year for the invoice:',
+                  style: TextStyle(fontSize: 13)),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -649,12 +1159,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           borderSide: BorderSide.none,
                         ),
                       ),
-                      items: List.generate(12, (i) => DropdownMenuItem(
-                        value: i + 1,
-                        child: Text(DateFormat('MMM').format(DateTime(2024, i + 1)),
-                            style: const TextStyle(fontSize: 14)),
-                      )),
-                      onChanged: (v) => setDialogState(() => selectedMonth = v!),
+                      items: List.generate(
+                          12,
+                          (i) => DropdownMenuItem(
+                                value: i + 1,
+                                child: Text(
+                                    DateFormat('MMM')
+                                        .format(DateTime(2024, i + 1)),
+                                    style: const TextStyle(fontSize: 14)),
+                              )),
+                      onChanged: (v) =>
+                          setDialogState(() => selectedMonth = v!),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -670,11 +1185,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           borderSide: BorderSide.none,
                         ),
                       ),
-                      items: List.generate(5, (i) => DropdownMenuItem(
-                        value: now.year - 2 + i,
-                        child: Text('${now.year - 2 + i}', style: const TextStyle(fontSize: 14)),
-                      )),
-                      onChanged: (v) => setDialogState(() => selectedYear = v!),
+                      items: List.generate(
+                          5,
+                          (i) => DropdownMenuItem(
+                                value: now.year - 2 + i,
+                                child: Text('${now.year - 2 + i}',
+                                    style: const TextStyle(fontSize: 14)),
+                              )),
+                      onChanged: (v) =>
+                          setDialogState(() => selectedYear = v!),
                     ),
                   ),
                 ],
@@ -684,14 +1203,19 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
+              child: const Text('CANCEL',
+                  style: TextStyle(color: AppTheme.textSecondary)),
             ),
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                _generatePdf(transactions, username, selectedMonth, selectedYear);
+                _generatePdf(transactions, username, selectedMonth,
+                    selectedYear);
               },
-              child: const Text('GENERATE', style: TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold)),
+              child: const Text('GENERATE',
+                  style: TextStyle(
+                      color: AppTheme.accentCyan,
+                      fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -699,7 +1223,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     );
   }
 
-  Future<void> _generatePdf(List transactions, String username, int month, int year) async {
+  Future<void> _generatePdf(
+      List transactions, String username, int month, int year) async {
     setState(() => _isGeneratingPdf = true);
 
     try {
@@ -736,7 +1261,29 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     }
   }
 
-  Widget _quickStatCard(BuildContext context, String label, String value, Color color, IconData icon) {
+  Widget _monthCompareCard(BuildContext context, String label, String value,
+      Color color, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 6),
+        Text(value,
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.color
+                    ?.withValues(alpha: 0.5))),
+      ],
+    );
+  }
+
+  Widget _quickStatCard(BuildContext context, String label, String value,
+      Color color, IconData icon) {
     return FloatingGlassCard(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -754,9 +1301,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5)),
                 const SizedBox(height: 2),
-                Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                Text(value,
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).textTheme.bodyLarge?.color)),
               ],
             ),
           ),
@@ -765,37 +1321,36 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     );
   }
 
-  Widget _legendDot(Color color, String label) {
-    return Row(
-      children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.6))),
-      ],
-    );
-  }
-
   Widget _sectionHeader(BuildContext context, String title) {
     return Text(
       title,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        letterSpacing: 2,
-        fontWeight: FontWeight.bold,
-      ),
+            letterSpacing: 2,
+            fontWeight: FontWeight.bold,
+          ),
     );
   }
 
-  Widget _statColumn(BuildContext context, String label, String value, Color color) {
+  Widget _statColumn(
+      BuildContext context, String label, String value, Color color) {
     return Column(
       children: [
-        Text(label, style: TextStyle(color: color, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: TextStyle(
+                color: color,
+                fontSize: 10,
+                letterSpacing: 1,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(value,
+            style: TextStyle(
+                color: color, fontSize: 18, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
-  List<PieChartSectionData> _buildPieSections(Map<String, double> data, double total) {
+  List<PieChartSectionData> _buildPieSections(
+      Map<String, double> data, double total) {
     return data.entries.map((e) {
       final percent = total > 0 ? (e.value / total * 100) : 0.0;
       return PieChartSectionData(
@@ -803,7 +1358,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         value: e.value,
         title: '${percent.toStringAsFixed(0)}%',
         radius: 50,
-        titleStyle: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+        titleStyle: const TextStyle(
+            color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
       );
     }).toList();
   }
@@ -825,6 +1381,91 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 }
 
+// ─── 7-Day Cash Flow Chart ──────────────────────────────────────────────────
+class _SevenDayCashFlowChart extends StatelessWidget {
+  final Map<String, double> last7DaysCF;
+  const _SevenDayCashFlowChart({required this.last7DaysCF});
+
+  @override
+  Widget build(BuildContext context) {
+    final keys = last7DaysCF.keys.toList();
+    double maxAbs = 100;
+    for (final v in last7DaysCF.values) {
+      if (v.abs() > maxAbs) maxAbs = v.abs();
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxAbs * 1.3,
+        minY: -maxAbs * 1.3,
+        titlesData: FlTitlesData(
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, _) {
+                final idx = value.toInt();
+                if (idx >= 0 && idx < keys.length) {
+                  final parts = keys[idx].split('-');
+                  final day = parts.length == 3 ? parts[2] : '';
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(day,
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color
+                                ?.withValues(alpha: 0.6))),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+        ),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: value == 0
+                ? Theme.of(context)
+                    .dividerColor
+                    .withValues(alpha: 0.4)
+                : Theme.of(context).dividerColor.withValues(alpha: 0.1),
+            strokeWidth: value == 0 ? 1.5 : 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: [
+          for (int i = 0; i < keys.length; i++)
+            BarChartGroupData(
+              x: i,
+              barRods: [
+                BarChartRodData(
+                  toY: last7DaysCF[keys[i]] ?? 0,
+                  color: (last7DaysCF[keys[i]] ?? 0) >= 0
+                      ? AppTheme.accentCyan
+                      : AppTheme.glowingRed,
+                  width: 18,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Day of Week Chart ───────────────────────────────────────────────────────
 class _DayOfWeekChart extends StatelessWidget {
   final List<TransactionModel> transactions;
 
@@ -848,9 +1489,12 @@ class _DayOfWeekChart extends StatelessWidget {
         alignment: BarChartAlignment.spaceAround,
         maxY: maxVal * 1.2,
         titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -859,7 +1503,13 @@ class _DayOfWeekChart extends StatelessWidget {
                 if (value >= 1 && value <= 7) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(days[value.toInt() - 1], style: const TextStyle(fontSize: 11)),
+                    child: Text(days[value.toInt() - 1],
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.color)),
                   );
                 }
                 return const Text('');
@@ -872,7 +1522,7 @@ class _DayOfWeekChart extends StatelessWidget {
           drawVerticalLine: false,
           horizontalInterval: maxVal / 3,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.1),
             strokeWidth: 1,
             dashArray: [5, 5],
           ),
@@ -887,7 +1537,8 @@ class _DayOfWeekChart extends StatelessWidget {
                   toY: dowSpend[i] ?? 0,
                   color: AppTheme.accentPurple,
                   width: 14,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(4)),
                   backDrawRodData: BackgroundBarChartRodData(
                     show: true,
                     toY: maxVal * 1.2,
@@ -901,4 +1552,3 @@ class _DayOfWeekChart extends StatelessWidget {
     );
   }
 }
-

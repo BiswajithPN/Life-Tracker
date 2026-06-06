@@ -22,6 +22,7 @@ class HabitItem {
   int streak;
   TimeOfDay reminderTime;
   bool isEveryday;
+  String? lastCompletedDate; // 'yyyy-MM-dd' of last completion
 
   HabitItem({
     required this.id,
@@ -30,6 +31,7 @@ class HabitItem {
     this.streak = 0,
     this.reminderTime = const TimeOfDay(hour: 8, minute: 0),
     this.isEveryday = false,
+    this.lastCompletedDate,
   });
 
   Map<String, dynamic> toJson() {
@@ -41,6 +43,7 @@ class HabitItem {
       'reminderHour': reminderTime.hour,
       'reminderMinute': reminderTime.minute,
       'isEveryday': isEveryday,
+      'lastCompletedDate': lastCompletedDate,
     };
   }
 
@@ -55,6 +58,7 @@ class HabitItem {
         minute: json['reminderMinute'] as int? ?? 0,
       ),
       isEveryday: json['isEveryday'] as bool? ?? false,
+      lastCompletedDate: json['lastCompletedDate'] as String?,
     );
   }
 }
@@ -65,19 +69,48 @@ class HabitNotifier extends Notifier<List<HabitItem>> {
     return 'habits_data_${user?.username ?? 'guest'}';
   }
 
+  /// Returns today's date as 'yyyy-MM-dd' for daily reset comparison
+  String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
   @override
   List<HabitItem> build() {
     ref.watch(userProvider); // Watch to trigger rebuild on user change
     final prefs = ref.watch(sharedPrefsProvider);
     final jsonStr = prefs.getString(_key);
+    final today = _todayKey();
     if (jsonStr != null) {
       try {
         final List<dynamic> decoded = jsonDecode(jsonStr);
         final List<HabitItem> validList = [];
+        bool anyReset = false;
         for (var e in decoded) {
           try {
-            validList.add(HabitItem.fromJson(e));
+            final habit = HabitItem.fromJson(e);
+            // Reset completedToday if it was done on a previous day
+            if (habit.completedToday && habit.lastCompletedDate != today) {
+              anyReset = true;
+              validList.add(
+                HabitItem(
+                  id: habit.id,
+                  title: habit.title,
+                  completedToday: false,
+                  streak: habit.streak,
+                  reminderTime: habit.reminderTime,
+                  isEveryday: habit.isEveryday,
+                  lastCompletedDate: habit.lastCompletedDate,
+                ),
+              );
+            } else {
+              validList.add(habit);
+            }
           } catch (_) {}
+        }
+        // Persist the reset so it survives hot restart / next build
+        if (anyReset) {
+          Future.microtask(() => _save(validList));
         }
         return validList;
       } catch (_) {}
@@ -93,7 +126,7 @@ class HabitNotifier extends Notifier<List<HabitItem>> {
 
   void addHabit(String title, TimeOfDay reminderTime, bool isEveryday) {
     if (title.trim().isEmpty) return;
-    
+
     final newHabit = HabitItem(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: title.trim(),
@@ -101,7 +134,7 @@ class HabitNotifier extends Notifier<List<HabitItem>> {
       isEveryday: isEveryday,
     );
     _save([...state, newHabit]);
-    
+
     if (isEveryday) {
       NotificationService.scheduleDailyHabitReminder(
         id: newHabit.id.hashCode,
@@ -115,25 +148,30 @@ class HabitNotifier extends Notifier<List<HabitItem>> {
     NotificationService.showNotification(
       id: newHabit.id.hashCode + 100,
       title: '✅ Habit Added',
-      body: 'Reminder set for "${newHabit.title}" at ${reminderTime.hour.toString().padLeft(2, '0')}:${reminderTime.minute.toString().padLeft(2, '0')}',
+      body:
+          'Reminder set for "${newHabit.title}" at ${_formatTime(reminderTime)}',
     );
   }
 
   void toggleHabit(String id) {
-    _save(state.map((h) {
-      if (h.id == id) {
-        final toggled = !h.completedToday;
-        return HabitItem(
-          id: h.id,
-          title: h.title,
-          completedToday: toggled,
-          streak: toggled ? h.streak + 1 : (h.streak > 0 ? h.streak - 1 : 0),
-          reminderTime: h.reminderTime,
-          isEveryday: h.isEveryday,
-        );
-      }
-      return h;
-    }).toList());
+    final today = _todayKey();
+    _save(
+      state.map((h) {
+        if (h.id == id) {
+          final toggled = !h.completedToday;
+          return HabitItem(
+            id: h.id,
+            title: h.title,
+            completedToday: toggled,
+            streak: toggled ? h.streak + 1 : (h.streak > 0 ? h.streak - 1 : 0),
+            reminderTime: h.reminderTime,
+            isEveryday: h.isEveryday,
+            lastCompletedDate: toggled ? today : h.lastCompletedDate,
+          );
+        }
+        return h;
+      }).toList(),
+    );
   }
 
   void removeHabit(String id) {
@@ -142,29 +180,31 @@ class HabitNotifier extends Notifier<List<HabitItem>> {
   }
 
   void updateReminderTime(String id, TimeOfDay time, bool isEveryday) {
-    _save(state.map((h) {
-      if (h.id == id) {
-        if (isEveryday) {
-          NotificationService.scheduleDailyHabitReminder(
-            id: h.id.hashCode,
-            habitName: h.title,
-            hour: time.hour,
-            minute: time.minute,
+    _save(
+      state.map((h) {
+        if (h.id == id) {
+          if (isEveryday) {
+            NotificationService.scheduleDailyHabitReminder(
+              id: h.id.hashCode,
+              habitName: h.title,
+              hour: time.hour,
+              minute: time.minute,
+            );
+          } else {
+            NotificationService.cancelReminder(h.id.hashCode);
+          }
+          return HabitItem(
+            id: h.id,
+            title: h.title,
+            completedToday: h.completedToday,
+            streak: h.streak,
+            reminderTime: time,
+            isEveryday: isEveryday,
           );
-        } else {
-          NotificationService.cancelReminder(h.id.hashCode);
         }
-        return HabitItem(
-          id: h.id,
-          title: h.title,
-          completedToday: h.completedToday,
-          streak: h.streak,
-          reminderTime: time,
-          isEveryday: isEveryday,
-        );
-      }
-      return h;
-    }).toList());
+        return h;
+      }).toList(),
+    );
   }
 
   /// Send reminders for all habits manually
@@ -175,6 +215,14 @@ class HabitNotifier extends Notifier<List<HabitItem>> {
       }
     }
   }
+}
+
+/// Format a TimeOfDay as "8:05 AM" / "10:30 PM"
+String _formatTime(TimeOfDay t) {
+  final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+  final minute = t.minute.toString().padLeft(2, '0');
+  final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+  return '$hour:$minute $period';
 }
 
 class HabitsScreen extends ConsumerWidget {
@@ -198,7 +246,10 @@ class HabitsScreen extends ConsumerWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: AppTheme.accentPurple),
+            icon: const Icon(
+              Icons.picture_as_pdf,
+              color: AppTheme.accentPurple,
+            ),
             tooltip: 'Generate Habit Report (PDF)',
             onPressed: () async {
               try {
@@ -207,12 +258,16 @@ class HabitsScreen extends ConsumerWidget {
                   username: user?.username ?? 'User',
                   habits: habits,
                 );
-                
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: const Text('🎉 Habit Report generated successfully!'),
-                      backgroundColor: AppTheme.accentCyan.withValues(alpha: 0.9),
+                      content: const Text(
+                        '🎉 Habit Report generated successfully!',
+                      ),
+                      backgroundColor: AppTheme.accentCyan.withValues(
+                        alpha: 0.9,
+                      ),
                       action: SnackBarAction(
                         label: 'OPEN',
                         textColor: Colors.white,
@@ -224,7 +279,10 @@ class HabitsScreen extends ConsumerWidget {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error generating report: $e'), backgroundColor: AppTheme.glowingRed),
+                    SnackBar(
+                      content: Text('Error generating report: $e'),
+                      backgroundColor: AppTheme.glowingRed,
+                    ),
                   );
                 }
               }
@@ -241,16 +299,30 @@ class HabitsScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.track_changes, size: 64, color: AppTheme.accentCyan.withValues(alpha: 0.3)),
+                  Icon(
+                    Icons.track_changes,
+                    size: 64,
+                    color: AppTheme.accentCyan.withValues(alpha: 0.3),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'No habits yet',
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.5), fontSize: 16),
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Tap + to add your first habit',
-                    style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.3), fontSize: 13),
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.color?.withValues(alpha: 0.3),
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -263,7 +335,8 @@ class HabitsScreen extends ConsumerWidget {
                 return Dismissible(
                   key: Key(habit.id),
                   direction: DismissDirection.endToStart,
-                  onDismissed: (_) => ref.read(habitProvider.notifier).removeHabit(habit.id),
+                  onDismissed: (_) =>
+                      ref.read(habitProvider.notifier).removeHabit(habit.id),
                   background: Container(
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 20),
@@ -275,11 +348,14 @@ class HabitsScreen extends ConsumerWidget {
                     child: const Icon(Icons.delete, color: AppTheme.glowingRed),
                   ),
                   child: GestureDetector(
-                    onTap: () => ref.read(habitProvider.notifier).toggleHabit(habit.id),
+                    onTap: () =>
+                        ref.read(habitProvider.notifier).toggleHabit(habit.id),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 16),
                       child: FloatingGlassCard(
-                        glowColor: habit.completedToday ? AppTheme.accentCyan : Colors.transparent,
+                        glowColor: habit.completedToday
+                            ? AppTheme.accentCyan
+                            : Colors.transparent,
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
@@ -288,7 +364,9 @@ class HabitsScreen extends ConsumerWidget {
                               height: 28,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: habit.completedToday ? AppTheme.accentCyan : Colors.transparent,
+                                color: habit.completedToday
+                                    ? AppTheme.accentCyan
+                                    : Colors.transparent,
                                 border: Border.all(
                                   color: habit.completedToday
                                       ? AppTheme.accentCyan
@@ -297,7 +375,11 @@ class HabitsScreen extends ConsumerWidget {
                                 ),
                               ),
                               child: habit.completedToday
-                                  ? const Icon(Icons.check, color: Colors.black, size: 16)
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.black,
+                                      size: 16,
+                                    )
                                   : null,
                             ),
                             const SizedBox(width: 16),
@@ -309,8 +391,12 @@ class HabitsScreen extends ConsumerWidget {
                                     habit.title,
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).textTheme.bodyLarge?.color,
-                                      decoration: habit.completedToday ? TextDecoration.lineThrough : null,
+                                      color: Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge?.color,
+                                      decoration: habit.completedToday
+                                          ? TextDecoration.lineThrough
+                                          : null,
                                       decorationColor: AppTheme.accentCyan,
                                     ),
                                   ),
@@ -322,32 +408,50 @@ class HabitsScreen extends ConsumerWidget {
                                         initialTime: habit.reminderTime,
                                       );
                                       if (time != null) {
-                                        ref.read(habitProvider.notifier).updateReminderTime(habit.id, time, habit.isEveryday);
+                                        ref
+                                            .read(habitProvider.notifier)
+                                            .updateReminderTime(
+                                              habit.id,
+                                              time,
+                                              habit.isEveryday,
+                                            );
                                       }
                                     },
                                     child: Row(
                                       children: [
-                                        Icon(Icons.alarm, size: 13, color: AppTheme.accentMagenta.withValues(alpha: 0.7)),
+                                        Icon(
+                                          Icons.alarm,
+                                          size: 13,
+                                          color: AppTheme.accentMagenta
+                                              .withValues(alpha: 0.7),
+                                        ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          '${habit.reminderTime.hour.toString().padLeft(2, '0')}:${habit.reminderTime.minute.toString().padLeft(2, '0')}',
+                                          _formatTime(habit.reminderTime),
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: AppTheme.accentMagenta.withValues(alpha: 0.7),
+                                            color: AppTheme.accentMagenta
+                                                .withValues(alpha: 0.7),
                                           ),
                                         ),
                                         if (habit.isEveryday) ...[
                                           const SizedBox(width: 6),
-                                          Icon(Icons.repeat, size: 13, color: AppTheme.accentCyan.withValues(alpha: 0.7)),
+                                          Icon(
+                                            Icons.repeat,
+                                            size: 13,
+                                            color: AppTheme.accentCyan
+                                                .withValues(alpha: 0.7),
+                                          ),
                                           const SizedBox(width: 2),
                                           Text(
                                             'Everyday',
                                             style: TextStyle(
                                               fontSize: 11,
-                                              color: AppTheme.accentCyan.withValues(alpha: 0.7),
+                                              color: AppTheme.accentCyan
+                                                  .withValues(alpha: 0.7),
                                             ),
                                           ),
-                                        ]
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -355,14 +459,22 @@ class HabitsScreen extends ConsumerWidget {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
-                                color: AppTheme.accentPurple.withValues(alpha: 0.2),
+                                color: AppTheme.accentPurple.withValues(
+                                  alpha: 0.2,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 '🔥 ${habit.streak}',
-                                style: const TextStyle(color: AppTheme.accentPurple, fontSize: 12),
+                                style: const TextStyle(
+                                  color: AppTheme.accentPurple,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
@@ -386,7 +498,9 @@ class HabitsScreen extends ConsumerWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text('Add New Habit', style: TextStyle(fontSize: 16)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -394,10 +508,16 @@ class HabitsScreen extends ConsumerWidget {
               TextField(
                 controller: controller,
                 autofocus: true,
-                style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
                 decoration: InputDecoration(
                   hintText: 'e.g. Drink 2L water',
-                  hintStyle: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.3)),
+                  hintStyle: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.color?.withValues(alpha: 0.3),
+                  ),
                   filled: true,
                   fillColor: Colors.black.withValues(alpha: 0.1),
                   border: OutlineInputBorder(
@@ -418,18 +538,27 @@ class HabitsScreen extends ConsumerWidget {
                   }
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.alarm, size: 18, color: AppTheme.accentMagenta),
+                      const Icon(
+                        Icons.alarm,
+                        size: 18,
+                        color: AppTheme.accentMagenta,
+                      ),
                       const SizedBox(width: 10),
                       Text(
-                        'Reminder: ${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
-                        style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+                        'Reminder: ${_formatTime(selectedTime)}',
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
                       ),
                     ],
                   ),
@@ -440,7 +569,9 @@ class HabitsScreen extends ConsumerWidget {
                 children: [
                   Theme(
                     data: ThemeData(
-                      unselectedWidgetColor: Colors.white.withValues(alpha: 0.5),
+                      unselectedWidgetColor: Colors.white.withValues(
+                        alpha: 0.5,
+                      ),
                     ),
                     child: Checkbox(
                       value: isEveryday,
@@ -462,17 +593,32 @@ class HabitsScreen extends ConsumerWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('CANCEL', style: TextStyle(color: AppTheme.textSecondary)),
+              onPressed: () {
+                controller.dispose();
+                Navigator.pop(ctx);
+              },
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(color: AppTheme.textSecondary),
+              ),
             ),
             TextButton(
               onPressed: () {
                 if (controller.text.trim().isNotEmpty) {
-                  ref.read(habitProvider.notifier).addHabit(controller.text, selectedTime, isEveryday);
+                  ref
+                      .read(habitProvider.notifier)
+                      .addHabit(controller.text, selectedTime, isEveryday);
+                  controller.dispose();
                   Navigator.pop(ctx);
                 }
               },
-              child: const Text('ADD', style: TextStyle(color: AppTheme.accentCyan, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'ADD',
+                style: TextStyle(
+                  color: AppTheme.accentCyan,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),

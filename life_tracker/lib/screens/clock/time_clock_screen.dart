@@ -13,6 +13,7 @@ class TimeClockScreen extends StatefulWidget {
 class _TimeClockScreenState extends State<TimeClockScreen> {
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
+  Timer? _clockTimer;
   String _currentTime = '';
 
   // Lap tracking
@@ -22,7 +23,10 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
   void initState() {
     super.initState();
     _updateCurrentTime();
-    Timer.periodic(const Duration(seconds: 1), (_) => _updateCurrentTime());
+    _clockTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _updateCurrentTime(),
+    );
   }
 
   void _updateCurrentTime() {
@@ -76,6 +80,7 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _clockTimer?.cancel();
     super.dispose();
   }
 
@@ -107,9 +112,9 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
                 children: [
                   Text(
                     'CURRENT TIME',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      letterSpacing: 3,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(letterSpacing: 3),
                   ),
                   const SizedBox(height: 12),
                   ShaderMask(
@@ -129,9 +134,9 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _getDateString(),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      letterSpacing: 2,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(letterSpacing: 2),
                   ),
                 ],
               ),
@@ -146,9 +151,9 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
                 children: [
                   Text(
                     'STOPWATCH',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      letterSpacing: 3,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(letterSpacing: 3),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -156,7 +161,9 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
                     style: TextStyle(
                       fontSize: 42,
                       fontWeight: FontWeight.w300,
-                      color: _stopwatch.isRunning ? AppTheme.accentCyan : Theme.of(context).textTheme.displayLarge?.color,
+                      color: _stopwatch.isRunning
+                          ? AppTheme.accentCyan
+                          : Theme.of(context).textTheme.displayLarge?.color,
                       letterSpacing: 4,
                       fontFamily: 'monospace',
                     ),
@@ -176,8 +183,12 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
                       const SizedBox(width: 20),
                       // Start/Stop
                       _circleButton(
-                        icon: _stopwatch.isRunning ? Icons.pause : Icons.play_arrow,
-                        color: _stopwatch.isRunning ? AppTheme.accentMagenta : AppTheme.accentCyan,
+                        icon: _stopwatch.isRunning
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        color: _stopwatch.isRunning
+                            ? AppTheme.accentMagenta
+                            : AppTheme.accentCyan,
                         onTap: _startStop,
                         large: true,
                       ),
@@ -199,23 +210,33 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
               const SizedBox(height: 24),
               Text(
                 'LAPS',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(letterSpacing: 3),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(letterSpacing: 3),
               ),
               const SizedBox(height: 12),
               ...List.generate(_laps.length, (index) {
                 final lapIndex = _laps.length - 1 - index;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Lap ${lapIndex + 1}', style: Theme.of(context).textTheme.bodyMedium),
+                      Text(
+                        'Lap ${lapIndex + 1}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                       Text(
                         _formatDuration(_laps[lapIndex]),
                         style: TextStyle(
@@ -238,8 +259,18 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
   String _getDateString() {
     final now = DateTime.now();
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}';
@@ -261,7 +292,9 @@ class _TimeClockScreenState extends State<TimeClockScreen> {
           shape: BoxShape.circle,
           color: color.withValues(alpha: 0.15),
           border: Border.all(color: color, width: 2),
-          boxShadow: large ? AppTheme.getNeonGlow(color: color, intensity: 0.5) : [],
+          boxShadow: large
+              ? AppTheme.getNeonGlow(color: color, intensity: 0.5)
+              : [],
         ),
         child: Icon(icon, color: color, size: large ? 28 : 20),
       ),

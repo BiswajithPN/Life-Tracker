@@ -20,6 +20,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   void _handleSignup() async {
     setState(() {
@@ -64,16 +66,23 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       body: Stack(
         children: [
           Container(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0.5, -0.6),
-                radius: 1.5,
-                colors: [Color(0xFF1A0E2E), AppTheme.background],
-              ),
+            decoration: BoxDecoration(
+              gradient: isDark
+                  ? const RadialGradient(
+                      center: Alignment(0.5, -0.6),
+                      radius: 1.5,
+                      colors: [Color(0xFF1A0E2E), AppTheme.background],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                      colors: [Color(0xFFF0EAFF), Color(0xFFE8F5F3)],
+                    ),
             ),
           ),
           SafeArea(
@@ -92,6 +101,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         style: Theme.of(context).textTheme.displayLarge?.copyWith(
                           letterSpacing: 3,
                           fontSize: 28,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -142,6 +152,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             hint: 'Password',
                             icon: Icons.lock_outline,
                             isPassword: true,
+                            obscureText: _obscurePassword,
+                            onToggleVisibility: () =>
+                                setState(() => _obscurePassword = !_obscurePassword),
                           ),
                           const SizedBox(height: 16),
                           _buildTextField(
@@ -149,6 +162,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             hint: 'Confirm Password',
                             icon: Icons.lock_outline,
                             isPassword: true,
+                            obscureText: _obscureConfirmPassword,
+                            onToggleVisibility: () =>
+                                setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                           ),
                           const SizedBox(height: 24),
                           NeonButton(
@@ -167,7 +183,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       child: RichText(
                         text: TextSpan(
                           text: 'Already have an account? ',
-                          style: TextStyle(color: AppTheme.textSecondary),
+                          style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                           children: const [
                             TextSpan(
                               text: 'LOG IN',
@@ -195,28 +211,53 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     required String hint,
     required IconData icon,
     bool isPassword = false,
+    bool obscureText = false,
+    VoidCallback? onToggleVisibility,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppTheme.lightTextPrimary;
+    final hintColor = isDark
+        ? Colors.white.withValues(alpha: 0.35)
+        : AppTheme.lightTextSecondary.withValues(alpha: 0.6);
+    final fillColor = isDark
+        ? Colors.black.withValues(alpha: 0.2)
+        : Colors.white.withValues(alpha: 0.7);
+
     return TextField(
       controller: controller,
-      obscureText: isPassword,
-      style: const TextStyle(color: Colors.white),
+      obscureText: isPassword ? obscureText : false,
+      style: TextStyle(color: textColor),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+        hintStyle: TextStyle(color: hintColor),
         prefixIcon: Icon(icon, color: AppTheme.accentCyan.withValues(alpha: 0.7)),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: AppTheme.accentCyan.withValues(alpha: 0.7),
+                  size: 20,
+                ),
+                onPressed: onToggleVisibility,
+              )
+            : null,
         filled: true,
-        fillColor: Colors.black.withValues(alpha: 0.2),
+        fillColor: fillColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : AppTheme.accentCyan.withValues(alpha: 0.2),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppTheme.accentCyan, width: 1),
+          borderSide: const BorderSide(color: AppTheme.accentCyan, width: 1.5),
         ),
       ),
     );
